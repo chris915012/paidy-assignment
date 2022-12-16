@@ -65,5 +65,11 @@ libraryDependencies ++= Seq(
   Libraries.logback,
   Libraries.scalaTest        % Test,
   Libraries.scalaCheck       % Test,
-  Libraries.catsScalaCheck   % Test
+  Libraries.catsScalaCheck   % Test,
+  "org.apache.logging.log4j" % "log4j-api-scala_2.13" % "12.0",
+  "org.apache.logging.log4j" % "log4j-core" % "2.19.0" % Runtime,
+  "com.lihaoyi" %% "requests" % "0.7.1",
+  "org.json4s" %% "json4s-native" % "4.0.6",
+  "org.json4s" %% "json4s-jackson" % "4.0.6"
+
 )
