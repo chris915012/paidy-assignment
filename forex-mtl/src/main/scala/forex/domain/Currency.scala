@@ -26,16 +26,6 @@ object Currency {
   implicit val encoder: Encoder[Currency] =
     Encoder.instance[Currency] { c => Json.fromString(c.code) }
 
-  def fromString(s: String): Currency = s.toUpperCase match {
-    case "AUD" => AUD
-    case "CAD" => CAD
-    case "CHF" => CHF
-    case "EUR" => EUR
-    case "GBP" => GBP
-    case "NZD" => NZD
-    case "JPY" => JPY
-    case "SGD" => SGD
-    case "USD" => USD
-  }
+  def fromString(s: String): Currency = all.find(_.code == s.toUpperCase).get
 
 }
