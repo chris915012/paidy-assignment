@@ -8,8 +8,8 @@ import ch.qos.logback.core.util.StatusPrinter
 import com.typesafe.config.ConfigFactory
 import forex.domain.{Price, Rate, Timestamp}
 import forex.services.rates.Algebra
-import forex.services.rates.errors.Error.OneFrameLookupFailed
-import forex.services.rates.errors._
+import forex.services.rates.Errors.Error.OneFrameLookupFailed
+import forex.services.rates.Errors._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.{DefaultFormats, JValue}
 import org.slf4j.LoggerFactory
@@ -27,7 +27,9 @@ class OneFrameClient[F[_]: Applicative] extends Algebra[F] {
       headers = Map("token" -> oneFrameConfig.getString("token"))
     )
 
-    val uri: String = oneFrameConfig.getString("address") + s"/rates?pair=${pair.from}${pair.to}"
+    val exchangeItem = s"${pair.from}${pair.to}"
+
+    val uri: String = oneFrameConfig.getString("address") + s"/rates?pair=$exchangeItem"
     val eitherJsonString: Error Either String = Either.catchNonFatal(session.get(uri).text())
       .leftMap(e => OneFrameLookupFailed(e.getMessage))
     eitherJsonString.flatMap { jsonString =>
