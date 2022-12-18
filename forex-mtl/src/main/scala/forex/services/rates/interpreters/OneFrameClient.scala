@@ -1,5 +1,7 @@
 package forex.services.rates.interpreters
 
+import java.util.concurrent.TimeUnit
+
 import cats.Applicative
 import cats.syntax.applicative._
 import cats.syntax.either._
@@ -14,9 +16,12 @@ import org.json4s.jackson.JsonMethods._
 import org.json4s.{DefaultFormats, JValue}
 import org.slf4j.LoggerFactory
 
-class OneFrameClient[F[_]: Applicative] extends Algebra[F] {
+import scala.concurrent.duration.Duration
 
-  StatusPrinter.print((LoggerFactory.getILoggerFactory).asInstanceOf[LoggerContext])
+class OneFrameClient[F[_]: Applicative] extends Algebra[F] {
+  val cache = new Cache[Int](1000, Duration(5, TimeUnit.MINUTES))
+
+  StatusPrinter.print(LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext])
 
   override def get(pair: Rate.Pair): F[Error Either Rate] = {
     val config = ConfigFactory.load("application.conf").getConfig("app")
@@ -28,16 +33,21 @@ class OneFrameClient[F[_]: Applicative] extends Algebra[F] {
     )
 
     val exchangeItem = s"${pair.from}${pair.to}"
-
-    val uri: String = oneFrameConfig.getString("address") + s"/rates?pair=$exchangeItem"
-    val eitherJsonString: Error Either String = Either.catchNonFatal(session.get(uri).text())
-      .leftMap(e => OneFrameLookupFailed(e.getMessage))
-    eitherJsonString.flatMap { jsonString =>
-      val eitherParsedJson: Error Either JValue = Either.catchNonFatal(parse(jsonString)).leftMap(e => OneFrameLookupFailed(e.getMessage))
-      eitherParsedJson.map { parsedJson =>
-        val price = (parsedJson \ "price").extract[List[Double]]
-        Rate(pair, Price(price.head), Timestamp.now)
-      }
-    }.pure[F]
+    val cachedPrice = cache.get(exchangeItem)
+    if(cachedPrice.isEmpty) {
+      val uri: String = oneFrameConfig.getString("address") + s"/rates?pair=$exchangeItem"
+      val eitherJsonString: Error Either String = Either.catchNonFatal(session.get(uri).text())
+        .leftMap(e => OneFrameLookupFailed(e.getMessage))
+      eitherJsonString.flatMap { jsonString =>
+        val eitherParsedJson: Error Either JValue = Either.catchNonFatal(parse(jsonString)).leftMap(e => OneFrameLookupFailed(e.getMessage))
+        eitherParsedJson.map { parsedJson =>
+          val price = (parsedJson \ "price").extract[List[Double]]
+          cache.put(exchangeItem, price.head)
+          Rate(pair, Price(price.head), Timestamp.now)
+        }
+      }.pure[F]
+    } else {
+        Rate(pair, Price(BigDecimal.valueOf(cachedPrice.head)), Timestamp.now).asRight[Error].pure[F]
+    }
   }
 }
